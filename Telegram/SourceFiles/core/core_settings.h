@@ -784,6 +784,13 @@ public:
 	void incrementRecentEmoji(RecentEmojiId id);
 	void hideRecentEmoji(RecentEmojiId id);
 	void resetRecentEmoji();
+
+	// Owpengram: per-server view over recent emoji, see _recentEmojiDocumentsByScope above.
+	// An empty scope (official Telegram, or an unrecognized/local account) behaves exactly
+	// like recentEmoji()/incrementRecentEmoji() always have.
+	[[nodiscard]] std::vector<RecentEmoji> recentEmojiForScope(
+		const QString &scope) const;
+	void incrementRecentEmojiForScope(RecentEmojiId id, const QString &scope);
 	void setLegacyRecentEmojiPreload(QVector<QPair<QString, ushort>> data);
 	[[nodiscard]] rpl::producer<> recentEmojiUpdated() const {
 		return _recentEmojiUpdated.events();
@@ -1142,6 +1149,12 @@ private:
 	mutable std::vector<RecentEmoji> _recentEmoji;
 	base::flat_set<QString> _recentEmojiSkip;
 	mutable bool _recentEmojiResolved = false;
+	// Owpengram: custom-emoji documents keyed by backend (Owpengram::ServerScopeKeyForAccount),
+	// so a document id cached from one server never surfaces on another. Persisted to its own
+	// file (tdata/owpengram_recent_emoji.json), loaded lazily per scope on first use — kept
+	// entirely separate from serialize()/addFromSerialized() above, which we don't touch.
+	mutable base::flat_map<QString, std::vector<RecentEmoji>> _recentEmojiDocumentsByScope;
+	mutable base::flat_set<QString> _recentEmojiDocumentsByScopeLoaded;
 	base::flat_map<QString, uint8> _emojiVariants;
 	rpl::event_stream<> _recentEmojiUpdated;
 	bool _tabbedSelectorSectionEnabled = false; // per-window

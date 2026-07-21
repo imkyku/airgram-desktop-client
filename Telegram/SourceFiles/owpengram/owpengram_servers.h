@@ -81,6 +81,17 @@ void RestoreServerToAccount(not_null<Main::Account*> account);
 [[nodiscard]] Server CurrentServerForAccount(
 	not_null<Main::Account*> account);
 
+// Stable key for grouping per-server local device state (currently: recent/frequently-used
+// custom emoji, see Core::Settings::recentEmojiForScope) by backend rather than by device. Two
+// different custom servers do NOT share a document-id namespace — a custom-emoji document id
+// cached while using one never resolves on another (or on official Telegram), so state shared
+// across every account on the device would leak cross-server ids into every account's UI,
+// unresolvable there forever. Official Telegram, and anything we can't identify a server for,
+// get an empty QString (the account is treated as unscoped/legacy), so existing behaviour for
+// real Telegram accounts is unaffected. Host, not server id, is the identity that matters here:
+// the same physical backend added twice under different local ids should still share one scope.
+[[nodiscard]] QString ServerScopeKeyForAccount(not_null<Main::Account*> account);
+
 [[nodiscard]] bool ShouldUseCloudLangPack();
 
 void CheckServerOnline(

@@ -542,6 +542,14 @@ Server CurrentServerForAccount(not_null<Main::Account*> account) {
 	return OfficialServer();
 }
 
+QString ServerScopeKeyForAccount(not_null<Main::Account*> account) {
+	const auto server = CurrentServerForAccount(account);
+	if (server.isTelegram || server.host.isEmpty()) {
+		return QString();
+	}
+	return server.host.toLower();
+}
+
 bool ShouldUseCloudLangPack() {
 	return false;
 }
