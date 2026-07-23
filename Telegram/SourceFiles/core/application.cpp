@@ -1197,6 +1197,40 @@ void Application::checkStartUrls() {
 bool Application::openLocalUrl(const QString &url, QVariant context) {
 	const auto urlTrimmed = url.trimmed();
 
+	// owpg://oauth?token=... and owpg://resolve?domain=oauth&startapp=... are
+	// command-style links (mirroring tg://oauth / tg://resolve), not the
+	// owpg://<server-host>/<rest> invite/username form below — they carry no
+	// "/" after the host, so openOwpengramUrl's host-based routing would just
+	// drop them (slash <= 0). Convert to the equivalent tg:// command and
+	// dispatch it directly on the current session, same as
+	// openOwpengramUrl does for host-routed links, bypassing the
+	// Telegram-only guard further below (this must work on OwpenGram
+	// accounts too).
+	static const auto kOwpgCommandRe = QRegularExpression(
+		u"^owpg://(oauth|resolve)(\\?.*)?$"_q,
+		QRegularExpression::CaseInsensitiveOption);
+	if (const auto m = kOwpgCommandRe.match(urlTrimmed);
+			m.hasMatch() && !passcodeLocked()) {
+		const auto my = context.value<ClickHandlerContext>();
+		const auto controller = my.sessionWindow.get()
+			? my.sessionWindow.get()
+			: (_lastActivePrimaryWindow
+				? _lastActivePrimaryWindow->sessionController()
+				: nullptr);
+		if (!controller) {
+			return false;
+		}
+		const auto tgUrl = u"tg://"_q + m.captured(1) + m.captured(2);
+		auto tgCtx = my;
+		tgCtx.sessionWindow = base::make_weak(controller);
+		const auto tgContext = QVariant::fromValue(tgCtx);
+		const auto command = tgUrl.mid(u"tg://"_q.size());
+		if (TryRouterForLocalUrl(controller, command)) {
+			return true;
+		}
+		return openCustomUrl("tg://", LocalUrlHandlers(), tgUrl, tgContext);
+	}
+
 	// OwpenGram self-hosted links (owpg://<host>/<rest>) are routed to the matching
 	// server account and handled with the standard tg:// handlers, bypassing the
 	// official-Telegram guard below.
