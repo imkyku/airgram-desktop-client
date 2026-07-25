@@ -5040,6 +5040,25 @@ void HistoryItem::updateReactions(const MTPMessageReactions *reactions) {
 	}
 	CheckReactionNotificationSchedule(this, wasRecentUsers);
 	_history->owner().notifyItemDataChange(this);
+	// notifyItemDataChange() alone does not repaint anything: nothing in
+	// this codebase subscribes to Data::Session::itemDataChanges(). The
+	// message-edit path (finishEdition()) is what actually invalidates and
+	// resizes the on-screen bubble via requestItemViewRefresh(), which is
+	// why a reaction arriving as part of an edited message has always shown
+	// up. A reaction arriving through updateMessageReactions (or through a
+	// getMessagesReactions poll response) went through changeReactions()
+	// and got stored correctly, but the view was never told to rebuild, so
+	// the new reaction row was silently never drawn. Mirror finishEdition()'s
+	// refresh here so a standalone reaction update actually repaints.
+	if (const auto group = _history->owner().groups().find(this)) {
+		for (const auto &groupedItem : group->items) {
+			_history->owner().requestItemViewRefresh(groupedItem);
+			groupedItem->invalidateChatListEntry();
+		}
+	} else {
+		_history->owner().requestItemViewRefresh(this);
+		invalidateChatListEntry();
+	}
 }
 
 bool HistoryItem::changeReactions(const MTPMessageReactions *reactions) {

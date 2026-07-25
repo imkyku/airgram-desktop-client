@@ -1757,22 +1757,25 @@ void Updates::feedUpdate(const MTPUpdate &update) {
 	case mtpc_updateMessageReactions: {
 		const auto &d = update.c_updateMessageReactions();
 		const auto peer = peerFromMTP(d.vpeer());
-		if (const auto history = session().data().historyLoaded(peer)) {
-			const auto item = session().data().message(
-				peer,
-				d.vmsg_id().v);
-			if (item) {
-				item->updateReactions(&d.vreactions());
-			} else {
-				const auto hasUnreadReaction = Data::Reactions::HasUnread(
-					d.vreactions());
-				if (hasUnreadReaction || history->unreadReactions().has()) {
-					// The unread reactions count could change.
-					history->owner().histories().requestDialogEntry(history);
-				}
-				if (hasUnreadReaction) {
-					history->unreadReactions().checkAdd(d.vmsg_id().v);
-				}
+		// Data::Session::message() indexes items per-peer independently of
+		// historyLoaded(): a chat can hold a cached HistoryItem (e.g. after
+		// switching accounts on the same client) while its History object
+		// itself is not yet marked "loaded". Looking the item up first (and
+		// only falling back to the unread-counter-only path when it's truly
+		// absent) makes the live reaction push apply even in that state,
+		// instead of being silently dropped because historyLoaded() was null.
+		const auto item = session().data().message(peer, d.vmsg_id().v);
+		if (item) {
+			item->updateReactions(&d.vreactions());
+		} else if (const auto history = session().data().historyLoaded(peer)) {
+			const auto hasUnreadReaction = Data::Reactions::HasUnread(
+				d.vreactions());
+			if (hasUnreadReaction || history->unreadReactions().has()) {
+				// The unread reactions count could change.
+				history->owner().histories().requestDialogEntry(history);
+			}
+			if (hasUnreadReaction) {
+				history->unreadReactions().checkAdd(d.vmsg_id().v);
 			}
 		}
 	} break;
