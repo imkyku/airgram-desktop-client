@@ -24,11 +24,11 @@ add_subdirectory(codegen)
 get_filename_component(src_loc SourceFiles REALPATH)
 get_filename_component(res_loc Resources REALPATH)
 
-set(branding_app_name "OwpenGram Desktop")
-set(branding_short_app_name "OwpenGram")
-set(branding_application_name "OwpengramDesktop")
-set(branding_company_name "OwpenGram")
-set(branding_bundle_identifier "org.owpengram.desktop")
+set(branding_app_name "Airgram Desktop")
+set(branding_short_app_name "Airgram")
+set(branding_application_name "AirgramDesktop")
+set(branding_company_name "Airgram")
+set(branding_bundle_identifier "lol.airgram.desktop")
 
 include(cmake/telegram_options.cmake)
 include(cmake/lib_ffmpeg.cmake)
@@ -2262,7 +2262,7 @@ else()
         set(bundle_identifier "com.owpengram.OwpenGram")
     endif()
     set(bundle_entitlements "Telegram.entitlements")
-    set(output_name "OwpenGram")
+    set(output_name "Airgram")
 endif()
 
 if (CMAKE_GENERATOR STREQUAL Xcode)
@@ -2301,7 +2301,7 @@ target_compile_definitions(Telegram
 PRIVATE
     TDESKTOP_API_ID=${TDESKTOP_API_ID}
     TDESKTOP_API_HASH=${TDESKTOP_API_HASH}
-    G_LOG_DOMAIN="OwpenGram"
+    G_LOG_DOMAIN="Airgram"
 )
 
 get_property(is_multi_config GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
