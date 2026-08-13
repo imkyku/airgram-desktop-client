@@ -1,4 +1,4 @@
-name: Windows.
+name: Windows
 
 on:
   push:
@@ -20,6 +20,7 @@ on:
       - 'Telegram/Telegram/**'
       - 'Telegram/configure.sh'
       - 'Telegram/Telegram.plist'
+
   pull_request:
     paths-ignore:
       - 'docs/**'
@@ -41,16 +42,32 @@ on:
       - 'Telegram/Telegram.plist'
 
 jobs:
-
   windows:
     name: Windows
-    runs-on: ${{ matrix.arch == 'arm64' && 'windows-11-arm' || ((github.event_name == 'pull_request' || startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/nightly') && 'depot-windows-latest-16' || 'windows-latest') }}
+
+    runs-on: >-
+      ${{
+        matrix.arch == 'arm64'
+        && 'windows-11-arm'
+        || (
+          (
+            github.event_name == 'pull_request'
+            || startsWith(github.ref, 'refs/tags/')
+            || github.ref == 'refs/heads/nightly'
+          )
+          && 'depot-windows-latest-16'
+          || 'windows-latest'
+        )
+      }}
 
     strategy:
       matrix:
-        arch: [x64]
-        qt: [qt6]
-        generator: [""]
+        arch:
+          - x64
+        qt:
+          - qt6
+        generator:
+          - ""
 
     env:
       UPLOAD_ARTIFACT: "true"
@@ -71,7 +88,8 @@ jobs:
 
       - name: Get repository name.
         shell: bash
-        run: echo "REPO_NAME=${GITHUB_REPOSITORY##*/}" >> $GITHUB_ENV
+        run: |
+          echo "REPO_NAME=${GITHUB_REPOSITORY##*/}" >> $GITHUB_ENV
 
       - name: Clone.
         uses: actions/checkout@v7
@@ -106,11 +124,15 @@ jobs:
             '--add','Microsoft.VisualStudio.Workload.VCTools', `
             '--add','Microsoft.VisualStudio.Component.VC.Tools.ARM64', `
             '--add','Microsoft.VisualStudio.Component.VC.ATL.ARM64'
-          Remove-Item vs_buildtools.exe -Force
-          if ($p.ExitCode -ne 0 -and $p.ExitCode -ne 3010) { exit $p.ExitCode }
 
-      - uses: Eden-CI/msvc-dev-cmd@master
-        name: Native Tools Command Prompt.
+          Remove-Item vs_buildtools.exe -Force
+
+          if ($p.ExitCode -ne 0 -and $p.ExitCode -ne 3010) {
+            exit $p.ExitCode
+          }
+
+      - name: Native Tools Command Prompt.
+        uses: Eden-CI/msvc-dev-cmd@master
         with:
           arch: ${{ matrix.arch }}
           sdk: ${{ env.SDK }}
@@ -153,8 +175,40 @@ jobs:
           restore-keys: ${{ runner.OS }}-${{ matrix.arch }}-${{ matrix.qt || 'qt' }}-
 
       - name: Libraries.
+        id: build-libraries
+        continue-on-error: true
         run: |
           %TBUILD%\%REPO_NAME%\Telegram\build\prepare\win.bat skip-release silent ${{ matrix.qt }}
+
+      - name: Save ThirdParty after Libraries.
+        if: >-
+          always()
+          && steps.build-libraries.outcome == 'failure'
+          && steps.cache-third-party.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: ${{ env.TBUILD }}\ThirdParty
+          key: ${{ runner.OS }}-${{ runner.arch }}-third-party-${{ env.CACHE_KEY }}
+
+      - name: Save Libraries after failure.
+        if: >-
+          always()
+          && steps.build-libraries.outcome == 'failure'
+          && steps.cache-libs.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: |
+            ${{ env.LibrariesPath }}\*
+            !${{ env.LibrariesPath }}\cache_keys
+            !${{ env.LibrariesPath }}\[qQ]t[_-]*
+            ${{ env.LibrariesPath }}\cache_keys\*
+            !${{ env.LibrariesPath }}\cache_keys\[qQ]t[_-]*
+          key: ${{ runner.OS }}-${{ matrix.arch }}-libs-${{ env.CACHE_KEY }}
+
+      - name: Stop after Libraries failure.
+        if: steps.build-libraries.outcome == 'failure'
+        run: |
+          exit /b 1
 
       - name: Read configuration matrix.
         shell: bash
@@ -164,10 +218,17 @@ jobs:
           ARCH=""
           if [ -n "${{ matrix.arch }}" ]; then
             case "${{ matrix.arch }}" in
-              x64_x86) ARCH="x86";;
-              arm64) ARCH="arm";;
-              *) ARCH="${{ matrix.arch }}";;
+              x64_x86)
+                ARCH="x86"
+                ;;
+              arm64)
+                ARCH="arm"
+                ;;
+              *)
+                ARCH="${{ matrix.arch }}"
+                ;;
             esac
+
             echo "Architecture from matrix: $ARCH"
             ARTIFACT_NAME="${ARTIFACT_NAME} ${{ matrix.arch }}"
           fi
@@ -182,6 +243,7 @@ jobs:
             echo "Generator from matrix: $GENERATOR"
             ARTIFACT_NAME="${ARTIFACT_NAME} ${{ matrix.generator }}"
           fi
+
           echo "TDESKTOP_BUILD_GENERATOR=$GENERATOR" >> $GITHUB_ENV
 
           [ -n "$GENERATOR" ] && ARCH=""
@@ -193,20 +255,43 @@ jobs:
             echo "Define from matrix: $DEFINE"
             ARTIFACT_NAME="${ARTIFACT_NAME} ${{ matrix.defines }}"
           fi
-          echo "TDESKTOP_BUILD_DEFINE=$DEFINE" >> $GITHUB_ENV
 
+          echo "TDESKTOP_BUILD_DEFINE=$DEFINE" >> $GITHUB_ENV
           echo "ARTIFACT_NAME=$ARTIFACT_NAME" >> $GITHUB_ENV
 
           API="-D TDESKTOP_API_TEST=ON"
-          if [ $GITHUB_REF == 'refs/heads/nightly' ]; then
+          if [ "$GITHUB_REF" == 'refs/heads/nightly' ]; then
             echo "Use the open credentials."
             API="-D TDESKTOP_API_ID=611335 -D TDESKTOP_API_HASH=d524b414d21f4d37f08684c1df41ac9c"
           fi
+
           echo "TDESKTOP_BUILD_API=$API" >> $GITHUB_ENV
 
       - name: Free up some disk space.
         shell: bash
-        run: find $LibrariesPath '(' '(' ! '(' -name '*.lib' -o -name '*.a' -o -name '*.exe' -o -name '*.h' -o -name '*.hpp' -o -name '*.inc' -o -name '*.cmake' -o -path '*/include/*' -o -path '*/objects-*' -o -path '*/cache_keys/*' -o -path '*/patches/*' ')' -type f ')' -o -empty ')' -delete
+        run: |
+          find $LibrariesPath \
+            '(' \
+              '(' \
+                ! \
+                '(' \
+                  -name '*.lib' \
+                  -o -name '*.a' \
+                  -o -name '*.exe' \
+                  -o -name '*.h' \
+                  -o -name '*.hpp' \
+                  -o -name '*.inc' \
+                  -o -name '*.cmake' \
+                  -o -path '*/include/*' \
+                  -o -path '*/objects-*' \
+                  -o -path '*/cache_keys/*' \
+                  -o -path '*/patches/*' \
+                ')' \
+                -type f \
+              ')' \
+              -o -empty \
+            ')' \
+            -delete
 
       - name: Telegram Desktop build.
         if: env.ONLY_CACHE == 'false'
@@ -234,8 +319,9 @@ jobs:
           mkdir artifact
           move %OUT%\Airgram.exe artifact/
           move %OUT%\Updater.exe artifact/
-      - uses: actions/upload-artifact@v7
-        name: Upload artifact.
+
+      - name: Upload artifact.
+        uses: actions/upload-artifact@v7
         if: (env.UPLOAD_ARTIFACT == 'true') || (github.ref == 'refs/heads/nightly')
         with:
           name: ${{ env.ARTIFACT_NAME }}
