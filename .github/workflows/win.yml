@@ -178,7 +178,7 @@ jobs:
         id: build-libraries
         continue-on-error: true
         run: |
-          %TBUILD%\%REPO_NAME%\Telegram\build\prepare\win.bat skip-release silent ${{ matrix.qt }}
+          %TBUILD%\%REPO_NAME%\Telegram\build\prepare\win.bat skip-release silent qt6
 
       - name: Save ThirdParty after Libraries.
         if: >-
