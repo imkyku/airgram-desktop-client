@@ -615,11 +615,11 @@ void BuildHelpSection(SectionBuilder &builder) {
 	builder.addSkip();
 	builder.addButton({
 		.id = u"main/owpengram-github"_q,
-		.title = rpl::single(u"OwpenGram"_q),
+		.title = rpl::single(u"AirGram"_q),
 		.icon = { &st::menuIconGithub },
 		.onClick = [] {
 			UrlClickHandler::Open(
-				u"https://github.com/owpengram/owpengram-server"_q);
+				u"https://github.com/imkyku/airgram-desktop-client"_q);
 		},
 		.keywords = { u"github"_q, u"source"_q, u"project"_q },
 	});
