@@ -347,21 +347,25 @@ ServerSelectWidget::ServerSelectWidget(
 }
 
 void ServerSelectWidget::finishInit() {
-	updateListGeometry();
-	rebuildList();
+    const auto weak = base::make_weak(this);
+    Ui::PostponeCall(weak, [=] {
+        if (weak) {
+            proceedJoin(Owpengram::OfficialServer());
+        }
+    });
 }
 
 void ServerSelectWidget::activate() {
-	Step::activate();
-	updateListGeometry();
-	rebuildList();
-	showChildren();
-	_panel->show();
-	_scroll->show();
-	_rowsContainer->show();
-	_addServer->show();
-	_statusTimer.cancel();
-	_statusTimer.callEach(30000);
+    Step::activate();
+
+    _ownTitle->hide();
+    _ownDescription->hide();
+    _panel->hide();
+    _scroll->hide();
+    _rowsContainer->hide();
+    _addServer->hide();
+
+    _statusTimer.cancel();
 }
 
 void ServerSelectWidget::submit() {
