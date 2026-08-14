@@ -1,45 +1,7 @@
-name: Windows
+name: Airgram Windows
 
 on:
-  push:
-    paths-ignore:
-      - 'docs/**'
-      - '**.md'
-      - '!docs/building-win*.md'
-      - 'changelog.txt'
-      - 'LEGAL'
-      - 'LICENSE'
-      - '.github/**'
-      - '!.github/workflows/win.yml'
-      - 'lib/xdg/**'
-      - 'snap/**'
-      - 'Telegram/build/docker/**'
-      - 'Telegram/Resources/uwp/**'
-      - 'Telegram/SourceFiles/platform/linux/**'
-      - 'Telegram/SourceFiles/platform/mac/**'
-      - 'Telegram/Telegram/**'
-      - 'Telegram/configure.sh'
-      - 'Telegram/Telegram.plist'
-
-  pull_request:
-    paths-ignore:
-      - 'docs/**'
-      - '**.md'
-      - '!docs/building-win*.md'
-      - 'changelog.txt'
-      - 'LEGAL'
-      - 'LICENSE'
-      - '.github/**'
-      - '!.github/workflows/win.yml'
-      - 'lib/xdg/**'
-      - 'snap/**'
-      - 'Telegram/build/docker/**'
-      - 'Telegram/Resources/uwp/**'
-      - 'Telegram/SourceFiles/platform/linux/**'
-      - 'Telegram/SourceFiles/platform/mac/**'
-      - 'Telegram/Telegram/**'
-      - 'Telegram/configure.sh'
-      - 'Telegram/Telegram.plist'
+  workflow_dispatch:
 
 jobs:
   windows:
@@ -73,6 +35,7 @@ jobs:
       UPLOAD_ARTIFACT: "true"
       ONLY_CACHE: "false"
       PREPARE_PATH: "Telegram/build/prepare/prepare.py"
+      CACHE_NAMESPACE: "airgram-release-v3"
 
     defaults:
       run:
@@ -143,17 +106,16 @@ jobs:
           nuget sources Disable -Name "Microsoft Visual Studio Offline Packages"
           nuget sources Add -Source https://api.nuget.org/v3/index.json & exit 0
 
-      - name: ThirdParty cache.
+      - name: Restore ThirdParty cache.
         id: cache-third-party
-        uses: actions/cache@v6
+        uses: actions/cache/restore@v6
         with:
           path: ${{ env.TBUILD }}\ThirdParty
-          key: ${{ runner.OS }}-${{ runner.arch }}-third-party-${{ env.CACHE_KEY }}
-          restore-keys: ${{ runner.OS }}-${{ runner.arch }}-third-party-
+          key: ${{ runner.OS }}-${{ runner.arch }}-third-party-${{ env.CACHE_NAMESPACE }}-${{ env.CACHE_KEY }}
 
-      - name: Libraries cache.
+      - name: Restore Libraries cache.
         id: cache-libs
-        uses: actions/cache@v6
+        uses: actions/cache/restore@v6
         with:
           path: |
             ${{ env.LibrariesPath }}\*
@@ -161,54 +123,24 @@ jobs:
             !${{ env.LibrariesPath }}\[qQ]t[_-]*
             ${{ env.LibrariesPath }}\cache_keys\*
             !${{ env.LibrariesPath }}\cache_keys\[qQ]t[_-]*
-          key: ${{ runner.OS }}-${{ matrix.arch }}-libs-${{ env.CACHE_KEY }}
-          restore-keys: ${{ runner.OS }}-${{ matrix.arch }}-libs-
+          key: ${{ runner.OS }}-${{ matrix.arch }}-libs-${{ env.CACHE_NAMESPACE }}-${{ env.CACHE_KEY }}
 
-      - name: Qt cache.
+      - name: Restore Qt cache.
         id: cache-qt
-        uses: actions/cache@v6
+        uses: actions/cache/restore@v6
         with:
           path: |
             ${{ env.LibrariesPath }}\[qQ]t[_-]*
             ${{ env.LibrariesPath }}\cache_keys\[qQ]t[_-]*
-          key: ${{ runner.OS }}-${{ matrix.arch }}-${{ matrix.qt || 'qt' }}-${{ env.CACHE_KEY }}
-          restore-keys: ${{ runner.OS }}-${{ matrix.arch }}-${{ matrix.qt || 'qt' }}-
+          key: ${{ runner.OS }}-${{ matrix.arch }}-${{ matrix.qt || 'qt' }}-${{ env.CACHE_NAMESPACE }}-${{ env.CACHE_KEY }}
+
+      - name: Check prepare.py syntax.
+        run: |
+          python -m py_compile %TBUILD%\%REPO_NAME%\Telegram\build\prepare\prepare.py
 
       - name: Libraries.
-        id: build-libraries
-        continue-on-error: true
         run: |
-          %TBUILD%\%REPO_NAME%\Telegram\build\prepare\win.bat skip-release silent qt6
-
-      - name: Save ThirdParty after Libraries.
-        if: >-
-          always()
-          && steps.build-libraries.outcome == 'failure'
-          && steps.cache-third-party.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v6
-        with:
-          path: ${{ env.TBUILD }}\ThirdParty
-          key: ${{ runner.OS }}-${{ runner.arch }}-third-party-${{ env.CACHE_KEY }}
-
-      - name: Save Libraries after failure.
-        if: >-
-          always()
-          && steps.build-libraries.outcome == 'failure'
-          && steps.cache-libs.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v6
-        with:
-          path: |
-            ${{ env.LibrariesPath }}\*
-            !${{ env.LibrariesPath }}\cache_keys
-            !${{ env.LibrariesPath }}\[qQ]t[_-]*
-            ${{ env.LibrariesPath }}\cache_keys\*
-            !${{ env.LibrariesPath }}\cache_keys\[qQ]t[_-]*
-          key: ${{ runner.OS }}-${{ matrix.arch }}-libs-${{ env.CACHE_KEY }}
-
-      - name: Stop after Libraries failure.
-        if: steps.build-libraries.outcome == 'failure'
-        run: |
-          exit /b 1
+          %TBUILD%\%REPO_NAME%\Telegram\build\prepare\win.bat silent ${{ matrix.qt }}
 
       - name: Read configuration matrix.
         shell: bash
@@ -292,6 +224,34 @@ jobs:
               -o -empty \
             ')' \
             -delete
+
+      - name: Save ThirdParty cache.
+        if: steps.cache-third-party.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: ${{ env.TBUILD }}\ThirdParty
+          key: ${{ steps.cache-third-party.outputs.cache-primary-key }}
+
+      - name: Save Libraries cache.
+        if: steps.cache-libs.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: |
+            ${{ env.LibrariesPath }}\*
+            !${{ env.LibrariesPath }}\cache_keys
+            !${{ env.LibrariesPath }}\[qQ]t[_-]*
+            ${{ env.LibrariesPath }}\cache_keys\*
+            !${{ env.LibrariesPath }}\cache_keys\[qQ]t[_-]*
+          key: ${{ steps.cache-libs.outputs.cache-primary-key }}
+
+      - name: Save Qt cache.
+        if: steps.cache-qt.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: |
+            ${{ env.LibrariesPath }}\[qQ]t[_-]*
+            ${{ env.LibrariesPath }}\cache_keys\[qQ]t[_-]*
+          key: ${{ steps.cache-qt.outputs.cache-primary-key }}
 
       - name: Telegram Desktop build.
         if: env.ONLY_CACHE == 'false'
