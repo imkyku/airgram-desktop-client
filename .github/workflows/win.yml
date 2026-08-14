@@ -7,20 +7,7 @@ jobs:
   windows:
     name: Windows
 
-    runs-on: >-
-      ${{
-        matrix.arch == 'arm64'
-        && 'windows-11-arm'
-        || (
-          (
-            github.event_name == 'pull_request'
-            || startsWith(github.ref, 'refs/tags/')
-            || github.ref == 'refs/heads/nightly'
-          )
-          && 'depot-windows-latest-16'
-          || 'windows-latest'
-        )
-      }}
+    runs-on: windows-2022
 
     strategy:
       matrix:
@@ -35,7 +22,7 @@ jobs:
       UPLOAD_ARTIFACT: "true"
       ONLY_CACHE: "false"
       PREPARE_PATH: "Telegram/build/prepare/prepare.py"
-      CACHE_NAMESPACE: "airgram-release-v3"
+      CACHE_NAMESPACE: "airgram-release-v4-vs2022"
 
     defaults:
       run:
